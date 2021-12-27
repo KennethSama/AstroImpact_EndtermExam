@@ -69,7 +69,7 @@ exploded_objects = []
 explosion_SFX = pg.mixer.Sound('Audio/explosion.wav')
 
 # ENEMIES
-enemy_sprites = ('Sprites/enemy1.png', 'Sprites/enemy3.png',  'Sprites/enemy3(2).png',  'Sprites/enemy3(3).png', 'Sprites/enemy2(3).png', 'Sprites/enemy2(2).png', 'Sprites/enemy2.png')
+enemy_sprites = ('Sprites/enemy1.png', 'Sprites/enemy2(3).png', 'Sprites/enemy2(2).png', 'Sprites/enemy2.png')
 enemies = []
 enemy_bullets = []
 enemy1_speed = [3.5, 4, 5, 6]
@@ -294,7 +294,7 @@ class Bullet(NonePlayer):
 
 
 class Enemy(NonePlayer):
-    def __init__(self, sprite, pos, speed, hp_start=0, hp_end=0, shoot_interval=0, name='unit', show_collider=False, player_y=0, can_rotate=False):
+    def __init__(self, sprite, pos, speed, hp_start=0, hp_end=0, shoot_interval=0, name='unit', show_collider=False, player_y=0):
         super().__init__(sprite, pos, speed, name, show_collider)
         self.hp = rnd.randrange(hp_start, hp_end, 50)
         self.score = 0
@@ -304,15 +304,10 @@ class Enemy(NonePlayer):
         self.shoot_available = shoot_interval
         self.choice_y = 0 if player_y > self.GetPos()[1] else 1
         self.pivot_x = rnd.randrange(Percentage(screen_width, 50), screen_width - 100)
-        self.can_rotate = can_rotate
         if self.shoot_available > 0:
             self.shoot_interval = shoot_interval
             self.max_interval = shoot_interval
             self.can_shoot = False
-        if can_rotate:
-            self.rotate_choice = rnd.randint(0, 1)
-            self.rotate_speed = rnd.uniform(0.05, 0.3)
-            self.angle = 1
 
     def GetChoiceY(self):
         return self.choice_y
@@ -341,10 +336,7 @@ class Enemy(NonePlayer):
     def SetPos(self, new_pos):
         self.pos = new_pos
         self.SetCollider()
-        if self.can_rotate is False:
-            SCREEN.blit(self.GetSprite(), new_pos)
-        else:
-            self.Rotate()
+        SCREEN.blit(self.GetSprite(), new_pos)
         if self.shoot_available > 0: self.Shoot(self.GetCenter())
 
     def SetCollider(self):
@@ -368,14 +360,6 @@ class Enemy(NonePlayer):
             enemy_bullet = Bullet('Sprites/laser.png', pos, self.GetSpeed() + 3, 0, 0, 'Enemy_Bullet', True)
             enemy_bullets.append(enemy_bullet)
         self.shoot_interval += 0.5
-
-    def Rotate(self):
-        if self.rotate_choice <= 0:
-            self.angle += self.rotate_speed
-        else:
-            self.angle -= self.rotate_speed
-        rotated = pg.transform.rotate(self.sprite, self.angle)
-        SCREEN.blit(rotated, self.GetPos())
 
 
 class PowerUp(NonePlayer):
@@ -468,9 +452,8 @@ def DisplayStageClear():
             game_ended = True
             end_game_delay = 0
             is_player_dead = False
+            current_timelapse = 0
             ResetPlayerPos()
-            end_boost = 3
-            next_level_delay = 0
             is_level_finished = False
             game_start, game_pause, powerup_avail, current_life, current_score, score_counter, enemy_count, current_level = ResetValues()
         end_game_delay += 0.5
@@ -529,46 +512,32 @@ def SpawnEnemy():
             rand_spawn = None
             if current_level >= 3:
                 rand_spawn = rnd.randrange(range)
-            elif current_level >= 3:
-                rand_spawn = rnd.randrange(range - 3)
+            elif current_level >= 2:
+                rand_spawn = rnd.randrange(range - 2)
             else:
-                rand_spawn = rnd.randrange(range - 4)
+                rand_spawn = rnd.randrange(range - 3)
 
             speed = rnd.choice(enemy1_speed)
             shoot_interval = rnd.choice(enemy_shoot_interval)
             name = 'Enemy'
-            can_rotate = False
             # choice_y = rnd.randint(0, 1)
-            hp_start = 10
-            hp_end = 20
-            if rand_spawn <= 3:
-                pos = [screen_width, rnd.randrange(0, int(Percentage(screen_height, 8)))]
-                if rand_spawn == 1:
-                    shoot_interval = 0
-                    can_rotate = True
-                elif rand_spawn == 2:
-                    hp_start = 20
-                    hp_end = 40
-                    shoot_interval = 0
-                    can_rotate = True
-                elif rand_spawn == 3:
-                    hp_start = 30
-                    hp_end = 50
-                    shoot_interval = 0
-                    can_rotate = True
-            elif rand_spawn == 4: pos = [screen_width, rnd.randrange(80, int(Percentage(screen_height, 20)))]
-            elif rand_spawn == 5: pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), -80]
-            elif rand_spawn == 6: pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), screen_height + 80]
 
-            enemy = Enemy(enemy_sprites[rand_spawn], pos, speed, hp_start, hp_end, shoot_interval, name + str(rand_spawn), False, player.GetPos()[1], can_rotate)
+            if rand_spawn == 0: pos = [screen_width, rnd.randrange(0, int(Percentage(screen_height, 8)))]
+            elif rand_spawn == 1: pos = [screen_width, rnd.randrange(80, int(Percentage(screen_height, 20)))]
+            elif rand_spawn == 2: pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), -80]
+            elif rand_spawn == 3: pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), screen_height + 80]
+
+            enemy = Enemy(enemy_sprites[rand_spawn], pos, speed, 10, 20, shoot_interval, name + str(rand_spawn), False, player.GetPos()[1])
             enemies.append(enemy)
             enemy_spawn_delay = 0
-            print(enemy.GetName())
+            # print('Spawned', enemy.GetName())
     enemy_spawn_delay += 0.5
+    # print(enemy_spawn_delay)
 
 def SpawnPlayer():
     global player
     player = Player('Sprites/x-wing(small).png', player_spawn_area, player_current_upgrades[3], 'Player')
+    # print("counter", counter)
 
 
 def SpawnPowerUp():
@@ -602,19 +571,16 @@ def MoveEnemies(enemy):
     else:
         if enemy.GetName() == 'Enemy0':
             x -= enemy.GetSpeed()
-        elif enemy.GetName() == 'Enemy1' or enemy.GetName() == 'Enemy2' or enemy.GetName() == 'Enemy3':
-            x -= enemy.GetSpeed()
-            enemy.Rotate()
-        elif enemy.GetName() == 'Enemy4':
+        elif enemy.GetName() == 'Enemy1':
             x -= enemy.GetSpeed()
             if x <= enemy.GetPivotX():
                 if enemy.GetChoiceY() >= 1:
                     y -= enemy.GetSpeed()
                 else:
                     y += enemy.GetSpeed()
-        elif enemy.GetName() == 'Enemy5':
+        elif enemy.GetName() == 'Enemy2':
             x, y = x - enemy.GetSpeed(), y + enemy.GetSpeed()
-        elif enemy.GetName() == 'Enemy6':
+        elif enemy.GetName() == 'Enemy3':
             x, y = x - enemy.GetSpeed(), y - enemy.GetSpeed()
         enemy.SetPos((x, y))
 
@@ -718,9 +684,8 @@ def Start():
 
 def ResetPlayerPos():
     global player_pos_x, player_pos_y
-    player_pos_x = 0
+    player_pos_x -= player.GetPos()[0]
     player_pos_y = 0
-    # player.SetPos(player_spawn_area)
 
 def Pause():
     pause_text = pause_font.render("PAUSE", True, white)
@@ -762,6 +727,7 @@ def FixedUpdate():
                     powerup_avail = True
 
         SpawnEnemy()
+        print(len(enemies))
         if powerup_avail:
             powerup_avail = MovePowerUp(powerup_obj)
         if len(enemies) <= 0:
@@ -819,6 +785,7 @@ def FixedUpdate():
                         current_score += 1
                 if IsCollided(player, en_b) and not is_player_dead:
                     current_life, is_player_dead = DestroyPlayer(enemy_bullets, en_b, player, current_life, is_player_dead)
+                    print("Destroyed by Enemy Bullet")
                 MoveBullet(en_b, enemy_bullets, 0, '-', '<')
 
         # LOOK FOR ENEMIES AND CHECK COLLISION WHILE MOVING ENEMIES
@@ -882,6 +849,7 @@ while running:
     if game_over:
         DisplayGameOver()
         current_level = 1
+        print("GameOver")
     else:
         FixedUpdate()
     for event in pg.event.get():
