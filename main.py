@@ -7,7 +7,6 @@ def Percentage(whole, perc, sign='-'):
     text3 = "{0} {1} ({0} * {2} / 100)".format(whole, sign, perc)
     return eval(text3)
 
-
 def CenterX(surface): return center_pos[0] - (surface.get_width() / 2)
 def CenterY(surface): return center_pos[1] - (surface.get_height() / 2)
 def CenterPos(surface): return CenterX(surface), CenterY(surface)
@@ -38,8 +37,8 @@ life_font = pg.font.Font("Font/azonix.otf", 30)
 level_font = pg.font.Font("Font/azonix.otf", 50)
 
 score_counter = 0
-# target_score = (200, 400, 600)
-target_score = (10, 15, 20)
+target_score = (200, 400, 500)
+# target_score = (10, 15, 20)
 target_score_iterator = 0
 
 current_score = 0
@@ -53,7 +52,7 @@ current_timelapse = 70
 level = [1, 2, 3]
 current_level = level[0]
 next_level_delay = 0
-next_level_interval = 150
+next_level_interval = 200
 
 # BACKGROUND
 bg_scroll_speed = 0.6
@@ -67,6 +66,10 @@ explosion_sprite_name = "Sprites/ExplosionSprites/explosion"
 explosion_sprites = []
 exploded_objects = []
 explosion_SFX = pg.mixer.Sound('Audio/explosion.wav')
+ending_SFX = pg.mixer.Sound('Audio/ending_BGM.mp3')
+pg.mixer.set_num_channels(8)
+bg_music = pg.mixer.Channel(5)
+intro_BGM = pg.mixer.Sound('Audio/intro_BGM.mp3')
 
 # ENEMIES
 enemy_sprites = ('Sprites/enemy1.png', 'Sprites/enemy3.png',  'Sprites/enemy3(2).png',  'Sprites/enemy3(3).png', 'Sprites/enemy2(3).png', 'Sprites/enemy2(2).png', 'Sprites/enemy2.png')
@@ -76,19 +79,19 @@ enemy1_speed = [3.5, 4, 5, 6]
 enemy2_y = [-50, screen_height + 50]
 enemy_shoot_interval = [0, 40, 50, 60, 80]
 enemy_update = False
-max_enemy_count = 20
-max_score_counter = max_enemy_count
+max_enemy_count = 25
+max_score_counter = max_enemy_count + 15
 enemy_spawn_delay = 0
 enemy_spawn_interval = 30
 enemy_count = 2
 enemy_counter = 0
 enemy_counter_limit = enemy_count + 1
-score_counter_limit = score_counter + 2
+score_counter_limit = enemy_counter_limit + 3
 
 # POWER UP
 powerup_obj = None
 powerup_speed = 5
-
+powerup_SFX = pg.mixer.Sound('Audio/upgrade.wav')
 powerup_avail = False
 can_spawn_powerup = False
 
@@ -96,42 +99,33 @@ can_spawn_powerup = False
 player = None
 player_pos_y = 0
 player_pos_x = 0
-player_spawn_area = [50, rnd.randrange(0, screen_height)]
+player_spawn_area = [50, Percentage(screen_height, 50)]
 player_speed = 3
 end_boost = 3
-
 player_max_x = screen_width - 200
 player_min_x = 20
 player_max_y = screen_height - 100
 player_min_y = 20
-
 player_bullets = []
 player_bullet_speed = 7
-
 player_update = False
 is_player_dead = False
-
 player_bullet_height = 0
 player_bullet_range = 650
 player_bullet_damage = 3
 player_bullet_SFX = pg.mixer.Sound("Audio/laserSFX_1.wav")
-
 player_bullet_pos_L = []
 player_bullet_pos_R = []
-
 l_shooting = False
 l_can_shoot = False
-
 r_shooting = False
 r_can_shoot = False
-
 player_bullet_count_interval_L = 0
 player_bullet_count_interval_R = 0
-
 player_bullet_interval_R = player_bullet_interval_L = 40
 
 # PLAYER (Dynamic Values)
-max_upgrade = 2
+max_upgrade = 7
 upgrade_counter = 0
 player_current_upgrades = [player_bullet_speed, player_bullet_damage, player_bullet_range, player_speed, bg_scroll_speed, player_bullet_interval_L, player_bullet_interval_R]
 
@@ -191,8 +185,7 @@ class GameObject:
 
     def SetTop(self, new_top): self.corners[3] = new_top
 
-    def ScaleCollider(self, collider_point, surface_point, line, extra=0): return collider_point + (
-                (line - surface_point) / 2 + extra)
+    def ScaleCollider(self, collider_point, surface_point, line, extra=0): return collider_point + ((line - surface_point) / 2 + extra)
 
     def SetCorners(self, corners): self.corners = corners
 
@@ -234,7 +227,6 @@ class Player(Unit):
             else:
                 self.pos[0] = player_max_x + 400
 
-        # TODO FIX HERE
         if self.pos[1] <= player_min_y:
             self.pos[1] = player_min_y
         elif self.pos[1] >= player_max_y:
@@ -262,8 +254,7 @@ class Player(Unit):
 
 
 class NonePlayer(Unit):
-    def __init__(self, sprite, pos, speed, name, show_collider): super().__init__(sprite, pos, speed, name,
-                                                                                  show_collider)
+    def __init__(self, sprite, pos, speed, name, show_collider): super().__init__(sprite, pos, speed, name, show_collider)
 
     def SetRange(self): pass
 
@@ -369,13 +360,28 @@ class Enemy(NonePlayer):
             enemy_bullets.append(enemy_bullet)
         self.shoot_interval += 0.5
 
+class Asteroid(Enemy):
+    def SetCollider(self):
+        collider = self.sprite.get_rect(topleft=self.pos)
+        new_right = collider.width - 30
+        new_bottom = collider.height - 30
+        new_left = collider.left + Percentage(collider.width, 80)
+        new_top = collider.top + Percentage(collider.width, 70)
+        collider_rect = pg.Rect(new_left, new_top, new_right, new_bottom)
+        self.SetCenter(collider.center)
+        self.SetCorners((collider_rect.left, collider_rect.bottom, collider_rect.right, collider_rect.top))
+        if self.show_collider: pg.draw.rect(SCREEN, red, collider_rect, 3)
+        del collider, collider_rect
+
     def Rotate(self):
         if self.rotate_choice <= 0:
             self.angle += self.rotate_speed
         else:
             self.angle -= self.rotate_speed
-        rotated = pg.transform.rotate(self.sprite, self.angle)
-        SCREEN.blit(rotated, self.GetPos())
+        loc = self.sprite.get_rect().center
+        rot_sprite = pg.transform.rotate(self.sprite, self.angle)
+        rot_sprite.get_rect().center = loc
+        SCREEN.blit(rot_sprite, self.GetPos())
 
 
 class PowerUp(NonePlayer):
@@ -390,7 +396,7 @@ class PowerUp(NonePlayer):
         SCREEN.blit(self.GetSprite(), new_pos)
 
     def SetUpgrades(self, current_upgrades: tuple or list):
-        new_upgrades = [0.5, 0, 50, 0.5, 0.1, 5, 5]
+        new_upgrades = [0.5, 0, 50, 0.3, 0.1, 5, 5]
         limit = len(new_upgrades) - 2
         self.upgrades = current_upgrades
         for u in range(len(self.upgrades)):
@@ -399,8 +405,7 @@ class PowerUp(NonePlayer):
             else:
                 self.upgrades[u] -= new_upgrades[u]
 
-    def GetUpgrades(self):
-        return self.upgrades
+    def GetUpgrades(self): return self.upgrades
 
 class Explosion:
     def __init__(self, object):
@@ -415,9 +420,6 @@ class Explosion:
         object_explosion = pg.image.load(explosion_sprites[int(self.sprite_index)]).convert_alpha()
         SCREEN.blit(object_explosion, self.object.GetPos())
         self.sprite_index += 0.25
-
-
-
 
 # GLOBAL FUNCTIONS ----------------------------------------------------------------------------------------------------
 
@@ -454,9 +456,11 @@ def DisplayLife(life):
 
 end_game_delay = 0
 end_game_interval = next_level_interval - 10
+ending_SFX_play = False
+ending_SFX_play_limit = 0
 def DisplayStageClear():
     global is_level_finished, next_level_delay, current_level, player_pos_x, is_bg_set, end_boost, target_score_iterator, game_ended, end_game_delay, game_start
-    global game_start, game_pause, powerup_avail, current_life, current_score, score_counter, enemy_spawn_delay, player_pos_y, enemy_count, is_player_dead
+    global game_start, game_pause, powerup_avail, current_life, current_score, score_counter, enemy_spawn_delay, player_pos_y, enemy_count, is_player_dead, ending_SFX_play, ending_SFX_play_limit
     levelcomplete_text = None
     if current_level < 3:
         levelcomplete_text = intro_font.render('LEVEL {0}  CLEARED'.format(current_level), False, white)
@@ -464,6 +468,11 @@ def DisplayStageClear():
         levelcomplete_text = intro_font.render('CONGRATULATIONS!', False, white)
         next_text = life_font.render("You Saved the Universe", False, white)
         SCREEN.blit(next_text, (CenterX(next_text), CenterY(next_text) + 100))
+        if ending_SFX_play_limit == 0:
+            ending_SFX_play = True
+        elif ending_SFX_play_limit >= 1:
+            ending_SFX_play_limit = 1
+        ending_SFX_play_limit += 1
         if end_game_delay >= end_game_interval:
             game_ended = True
             end_game_delay = 0
@@ -472,8 +481,10 @@ def DisplayStageClear():
             end_boost = 3
             next_level_delay = 0
             is_level_finished = False
+            border_up_pos[1] = -100
+            border_bot_pos[1] = screen_height
             game_start, game_pause, powerup_avail, current_life, current_score, score_counter, enemy_count, current_level = ResetValues()
-        end_game_delay += 0.5
+        end_game_delay += 0.7
 
     border_up = pg.Rect(border_up_pos[0], border_up_pos[1], screen_width, 100)
     border_bot = pg.Rect(border_up_pos[0], border_bot_pos[1], screen_width, 100)
@@ -526,44 +537,60 @@ def SpawnEnemy():
     if enemy_spawn_delay >= enemy_spawn_interval:
         if len(enemies) < enemy_count and is_player_dead is False and current_timelapse <= min_timelapse and is_level_finished is False:
             range = len(enemy_sprites)
+            limit = 0
             rand_spawn = None
             if current_level >= 3:
-                rand_spawn = rnd.randrange(range)
-            elif current_level >= 3:
-                rand_spawn = rnd.randrange(range - 3)
+                limit = 0
+            elif current_level >= 2:
+                limit = 3
             else:
-                rand_spawn = rnd.randrange(range - 4)
+                if current_score >= Percentage(target_score[0], 75):
+                    limit = 4
+                elif current_score >= Percentage(target_score[0], 50):
+                    limit = 5
+                elif current_score >= 0:
+                    limit = 6
+            rand_spawn = rnd.randrange(range - limit)
 
             speed = rnd.choice(enemy1_speed)
             shoot_interval = rnd.choice(enemy_shoot_interval)
             name = 'Enemy'
             can_rotate = False
-            # choice_y = rnd.randint(0, 1)
             hp_start = 10
-            hp_end = 20
+            hp_end = 30
             if rand_spawn <= 3:
                 pos = [screen_width, rnd.randrange(0, int(Percentage(screen_height, 8)))]
                 if rand_spawn == 1:
                     shoot_interval = 0
                     can_rotate = True
                 elif rand_spawn == 2:
-                    hp_start = 20
-                    hp_end = 40
+                    hp_start = 50
+                    hp_end = 60
                     shoot_interval = 0
                     can_rotate = True
                 elif rand_spawn == 3:
-                    hp_start = 30
-                    hp_end = 50
+                    hp_start = 80
+                    hp_end = 100
                     shoot_interval = 0
                     can_rotate = True
-            elif rand_spawn == 4: pos = [screen_width, rnd.randrange(80, int(Percentage(screen_height, 20)))]
-            elif rand_spawn == 5: pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), -80]
-            elif rand_spawn == 6: pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), screen_height + 80]
-
-            enemy = Enemy(enemy_sprites[rand_spawn], pos, speed, hp_start, hp_end, shoot_interval, name + str(rand_spawn), False, player.GetPos()[1], can_rotate)
+            elif rand_spawn == 4:
+                hp_start = 20
+                hp_end = 30
+                pos = [screen_width, rnd.randrange(80, int(Percentage(screen_height, 20)))]
+            elif rand_spawn == 5:
+                hp_start = 30
+                hp_end = 40
+                pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), -80]
+            elif rand_spawn == 6:
+                hp_start = 30
+                hp_end = 40
+                pos = [rnd.randrange(int(Percentage(screen_width, 45)), int(Percentage(screen_width, 10))), screen_height + 80]
+            if rand_spawn >=1 and rand_spawn <=3:
+                enemy = Asteroid(enemy_sprites[rand_spawn], pos, speed, hp_start, hp_end, shoot_interval, name + str(rand_spawn), False, player.GetPos()[1], can_rotate)
+            else:
+                enemy = Enemy(enemy_sprites[rand_spawn], pos, speed, hp_start, hp_end, shoot_interval, name + str(rand_spawn), False, player.GetPos()[1], can_rotate)
             enemies.append(enemy)
             enemy_spawn_delay = 0
-            print(enemy.GetName())
     enemy_spawn_delay += 0.5
 
 def SpawnPlayer():
@@ -597,7 +624,7 @@ def DestroyPlayer(object_list, collide_target, player_object, player_life, playe
 
 def MoveEnemies(enemy):
     x, y = enemy.GetPos()[0], enemy.GetPos()[1]
-    if x < -80 or y < -80 or y > (screen_height + 80):
+    if x < -100 or y < -80 or y > (screen_height + 80):
         DestroyObject(enemies, enemy)
     else:
         if enemy.GetName() == 'Enemy0':
@@ -644,6 +671,7 @@ def MovePowerUp(powerup):
         player_current_upgrades = powerup.GetUpgrades()
         player_update = True
         DestroyObject(None, powerup_obj)
+        powerup_SFX.play()
         upgrade_counter += 1
         return False
     else:
@@ -661,7 +689,6 @@ def Scroll():
     relative_x = bg_pos_x % screen_width
     bg_pos_x -= player_current_upgrades[4]
     if is_bg_set:
-        print("is_bg_set", is_bg_set)
         is_bg_set = False
         if current_level == 1:
             bg_image = pg.image.load(bg_image_name[0])
@@ -685,12 +712,15 @@ def ClearTempData():
     exploded_objects.clear()
 
 def ResetValues():
-    global player_current_upgrades, level, target_score_iterator
+    global player_current_upgrades, level, target_score_iterator, max_upgrade, can_spawn_powerup, score_counter, enemy_update, enemy_counter
     level = 1
+    max_upgrade = 7
     target_score_iterator = 0
     DestroyObject(None, player)
     DestroyObject(None, powerup_obj)
     ClearTempData()
+    enemy_update, enemy_counter = False, 0
+    can_spawn_powerup, score_counter = False, 0
     player_current_upgrades = [player_bullet_speed, player_bullet_damage, player_bullet_range, player_speed, bg_scroll_speed, player_bullet_interval_L, player_bullet_interval_R]
     return False, False, False, 3, 0, 0, 2, 1
 
@@ -709,18 +739,25 @@ def PlayExplosion(object):
     exploded_objects.append(exploded)
     explosion_SFX.play()
 
-
-
 def Start():
-    global game_start, player_update, game_ended, game_over, is_bg_set, explosion_sprites
+    global game_start, player_update, game_ended, game_over, is_bg_set, explosion_sprites, ending_SFX_play, ending_SFX_play_limit
     game_start, player_update, is_bg_set, game_over, game_ended = True, True, True, False, False
+    ResetPlayerPos()
+    ResetValues()
     SpawnPlayer()
+    ending_SFX_play_limit = 0
+    if bg_music.get_sound() is intro_BGM:
+        intro_BGM.set_volume(0.4)
+    if bg_music.get_busy():
+        ending_SFX.stop()
+        bg_music.play(intro_BGM, -1)
+    ending_SFX_play = False
 
 def ResetPlayerPos():
     global player_pos_x, player_pos_y
-    player_pos_x = 0
+    player_pos_x -= screen_width
     player_pos_y = 0
-    # player.SetPos(player_spawn_area)
+    # player.SetPos(player_spawn_area, True)
 
 def Pause():
     pause_text = pause_font.render("PAUSE", True, white)
@@ -740,16 +777,15 @@ def FixedUpdate():
         if current_life <= 0:
             game_start, game_pause, powerup_avail, current_life, current_score, score_counter, enemy_count, current_level = ResetValues()
             game_over, game_ended = True, True
-            ResetPlayerPos()
 
         # CONTROL THE FLOW OF SPAWN UPGRADES AND ENEMIES
         if enemy_counter and score_counter != 0:
-            if enemy_count <= max_enemy_count >= enemy_counter_limit :
+            if enemy_count <= max_enemy_count >= enemy_counter_limit:
                 if enemy_counter >= enemy_counter_limit and enemy_update is False:
                     enemy_update, enemy_counter = True, 0
                 if enemy_update:
                     enemy_count += 1
-                    enemy_counter_limit += 1
+                    enemy_counter_limit += 2
                     enemy_update = False
 
             if score_counter <= max_score_counter and upgrade_counter < max_upgrade:
@@ -757,11 +793,13 @@ def FixedUpdate():
                     can_spawn_powerup, score_counter = True, 0
                 if can_spawn_powerup:
                     SpawnPowerUp()
-                    score_counter_limit += 1
+                    score_counter_limit += 2
                     can_spawn_powerup = False
                     powerup_avail = True
+        # print('score_counter_limit', score_counter_limit, '| enemy_counter_limit', enemy_counter_limit, '| score_counter', score_counter, '| enemy_counter', enemy_counter)
 
         SpawnEnemy()
+
         if powerup_avail:
             powerup_avail = MovePowerUp(powerup_obj)
         if len(enemies) <= 0:
@@ -845,7 +883,6 @@ def FixedUpdate():
             if r_shooting and r_can_shoot:
                 player_bullet_pos_R = player.GetBulletR()
                 r_can_shoot, player_bullet_count_interval_R = Shoot(player_bullet_pos_R)
-
             player.SetPos((player_pos_x, player_pos_y))
 
     else:
@@ -872,9 +909,12 @@ def LateUpdate():
 
 SetColor()
 SetSprites()
-
+bg_music.play(intro_BGM, -1)
 is_bg_set = True
 while running:
+    if ending_SFX_play:
+        bg_music.play(ending_SFX)
+        ending_SFX_play = False
     if game_pause is False:
         Scroll()
     if game_ended and game_over is False:
